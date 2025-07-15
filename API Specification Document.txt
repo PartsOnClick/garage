@@ -1,0 +1,974 @@
+# WooCommerce Vehicle Parts Fitting Request System
+## API Specification Document
+**Version:** 3.0  
+**Date:** July 14, 2025  
+**Project:** Lead Generation Feature for Garage Fitting Services  
+**Client:** partsonclick.ae  
+**Base URL:** `https://partsonclick.ae/wp-json/fitting-request/v1/`
+
+---
+
+## Table of Contents
+
+1. [Overview](#1-overview)
+2. [Authentication](#2-authentication)
+3. [Rate Limiting](#3-rate-limiting)
+4. [Error Handling](#4-error-handling)
+5. [Data Models](#5-data-models)
+6. [Core Endpoints](#6-core-endpoints)
+7. [Admin Endpoints](#7-admin-endpoints)
+8. [Webhook Endpoints](#8-webhook-endpoints)
+9. [Security](#9-security)
+10. [Response Examples](#10-response-examples)
+
+---
+
+## 1. Overview
+
+### 1.1 API Purpose
+The Fitting Request System API provides endpoints for managing vehicle part fitting requests, garage notifications, quote submissions, and administrative functions within the WooCommerce ecosystem.
+
+### 1.2 API Versioning
+- **Current Version:** v1
+- **Versioning Strategy:** URL-based versioning (`/v1/`, `/v2/`, etc.)
+- **Backward Compatibility:** Maintained for 12 months after new version release
+
+### 1.3 Content Types
+- **Request Content-Type:** `application/json`
+- **Response Content-Type:** `application/json`
+- **Character Encoding:** UTF-8
+
+### 1.4 HTTP Methods
+- **GET:** Retrieve data
+- **POST:** Create new resources
+- **PUT:** Update existing resources
+- **PATCH:** Partial updates
+- **DELETE:** Remove resources
+
+---
+
+## 2. Authentication
+
+### 2.1 Authentication Methods
+
+#### 2.1.1 WordPress REST API Authentication
+```http
+Authorization: Bearer {jwt_token}
+```
+
+#### 2.1.2 API Key Authentication (Admin endpoints)
+```http
+X-API-Key: {api_key}
+X-API-Secret: {api_secret}
+```
+
+#### 2.1.3 Token-Based Authentication (Garage actions)
+```http
+Authorization: Token {secure_token}
+```
+
+### 2.2 Token Generation
+```http
+POST /auth/token
+Content-Type: application/json
+
+{
+  "username": "garage_user",
+  "password": "secure_password"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+    "expires_in": 3600,
+    "refresh_token": "refresh_token_string"
+  }
+}
+```
+
+---
+
+## 3. Rate Limiting
+
+### 3.1 Rate Limits by Endpoint Type
+
+| Endpoint Type | Rate Limit | Window |
+|---------------|------------|---------|
+| Form Submission | 5 requests | 5 minutes |
+| Status Check | 20 requests | 5 minutes |
+| Quote Submission | 10 requests | 10 minutes |
+| Admin Endpoints | 100 requests | 1 hour |
+| Public Endpoints | 60 requests | 1 minute |
+
+### 3.2 Rate Limit Headers
+```http
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 59
+X-RateLimit-Reset: 1642680000
+X-RateLimit-Retry-After: 60
+```
+
+### 3.3 Rate Limit Response
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded. Try again in 60 seconds.",
+    "retry_after": 60
+  }
+}
+```
+
+---
+
+## 4. Error Handling
+
+### 4.1 Error Response Format
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable error message",
+    "details": {
+      "field": "Specific field error"
+    },
+    "timestamp": "2025-07-14T10:30:00Z",
+    "request_id": "req_123456789"
+  }
+}
+```
+
+### 4.2 HTTP Status Codes
+
+| Status Code | Description | Usage |
+|-------------|-------------|--------|
+| 200 | OK | Successful GET, PUT, PATCH |
+| 201 | Created | Successful POST |
+| 204 | No Content | Successful DELETE |
+| 400 | Bad Request | Invalid request data |
+| 401 | Unauthorized | Authentication required |
+| 403 | Forbidden | Access denied |
+| 404 | Not Found | Resource not found |
+| 409 | Conflict | Resource conflict |
+| 422 | Unprocessable Entity | Validation errors |
+| 429 | Too Many Requests | Rate limit exceeded |
+| 500 | Internal Server Error | Server error |
+
+### 4.3 Error Codes
+
+| Error Code | Description |
+|------------|-------------|
+| `VALIDATION_ERROR` | Input validation failed |
+| `AUTHENTICATION_FAILED` | Invalid credentials |
+| `AUTHORIZATION_DENIED` | Insufficient permissions |
+| `RATE_LIMIT_EXCEEDED` | Rate limit exceeded |
+| `RESOURCE_NOT_FOUND` | Requested resource not found |
+| `DUPLICATE_REQUEST` | Duplicate resource creation |
+| `API_UNAVAILABLE` | Service temporarily unavailable |
+| `INVALID_TOKEN` | Token invalid or expired |
+
+---
+
+## 5. Data Models
+
+### 5.1 Fitting Request Model
+```json
+{
+  "id": "integer",
+  "request_id": "string (unique identifier)",
+  "product_id": "integer",
+  "car_make": "string",
+  "car_model": "string",
+  "customer_email": "string",
+  "customer_whatsapp": "string",
+  "selected_emirate": "string",
+  "request_date": "string (ISO 8601)",
+  "garages_notified": "integer",
+  "status": "enum [pending, sent, quotes_received, completed, cancelled]",
+  "priority": "integer (1-10)",
+  "created_at": "string (ISO 8601)",
+  "updated_at": "string (ISO 8601)"
+}
+```
+
+### 5.2 Quote Model
+```json
+{
+  "id": "integer",
+  "request_id": "string",
+  "garage_id": "integer",
+  "garage_name": "string",
+  "quote_amount": "number (decimal)",
+  "estimated_time": "string",
+  "notes": "string",
+  "status": "enum [pending, accepted, rejected]",
+  "submission_date": "string (ISO 8601)",
+  "updated_at": "string (ISO 8601)"
+}
+```
+
+### 5.3 Garage Model
+```json
+{
+  "id": "integer",
+  "name": "string",
+  "email": "string",
+  "whatsapp": "string",
+  "emirate": "string",
+  "address": "string",
+  "rating": "number",
+  "status": "enum [active, inactive, suspended]",
+  "specializations": "array of strings",
+  "created_at": "string (ISO 8601)",
+  "updated_at": "string (ISO 8601)"
+}
+```
+
+### 5.4 Notification Model
+```json
+{
+  "id": "integer",
+  "request_id": "string",
+  "notification_type": "enum [email, whatsapp, sms]",
+  "recipients": "array of strings",
+  "priority": "integer (1-10)",
+  "status": "enum [pending, processing, completed, failed]",
+  "attempts": "integer",
+  "created_at": "string (ISO 8601)",
+  "scheduled_for": "string (ISO 8601)",
+  "completed_at": "string (ISO 8601)",
+  "error_message": "string"
+}
+```
+
+---
+
+## 6. Core Endpoints
+
+### 6.1 Submit Fitting Request
+
+**Endpoint:** `POST /requests`
+
+**Description:** Submit a new fitting request for a vehicle part
+
+**Request Body:**
+```json
+{
+  "product_id": 123,
+  "emirate": "Dubai",
+  "car_make": "Toyota",
+  "car_model": "Camry",
+  "customer_email": "customer@example.com",
+  "customer_whatsapp": "+971501234567",
+  "customer_name": "Ahmed Ali"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "success": true,
+  "data": {
+    "request_id": "FR_2025071401234",
+    "status": "pending",
+    "tracking_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+    "estimated_response_time": "24 hours",
+    "garages_to_notify": 5
+  },
+  "meta": {
+    "timestamp": "2025-07-14T10:30:00Z",
+    "request_id": "req_123456789"
+  }
+}
+```
+
+**Validation Rules:**
+- `product_id`: Required, must exist in WooCommerce
+- `emirate`: Required, must be valid UAE emirate
+- `car_make`: Required, alphanumeric with spaces
+- `car_model`: Required, alphanumeric with spaces
+- `customer_email`: Required, valid email format
+- `customer_whatsapp`: Required, valid phone format with country code
+
+### 6.2 Get Request Status
+
+**Endpoint:** `GET /requests/{request_id}/status`
+
+**Description:** Get the current status of a fitting request
+
+**Headers:**
+```http
+Authorization: Token {tracking_token}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "request_id": "FR_2025071401234",
+    "status": "quotes_received",
+    "submitted_at": "2025-07-14T10:30:00Z",
+    "last_updated": "2025-07-14T14:20:00Z",
+    "quotes_count": 3,
+    "quotes": [
+      {
+        "garage_name": "Premium Auto Care",
+        "quote_amount": 250.00,
+        "estimated_time": "2 hours",
+        "notes": "Quality parts with 1-year warranty",
+        "contact_info": {
+          "phone": "+971501234567",
+          "email": "info@premiumauto.ae"
+        }
+      }
+    ]
+  }
+}
+```
+
+### 6.3 Submit Quote (Garage)
+
+**Endpoint:** `POST /quotes`
+
+**Description:** Submit a quote for a fitting request (garage endpoint)
+
+**Headers:**
+```http
+Authorization: Token {garage_token}
+```
+
+**Request Body:**
+```json
+{
+  "request_id": "FR_2025071401234",
+  "quote_amount": 250.00,
+  "estimated_time": "2 hours",
+  "notes": "Premium quality installation with warranty",
+  "availability": "immediate"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "success": true,
+  "data": {
+    "quote_id": 456,
+    "status": "submitted",
+    "customer_notified": true,
+    "quote_valid_until": "2025-07-21T10:30:00Z"
+  }
+}
+```
+
+### 6.4 Get Available Car Makes
+
+**Endpoint:** `GET /car-data/makes`
+
+**Description:** Get list of available car makes
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "toyota",
+      "name": "Toyota",
+      "models_count": 15
+    },
+    {
+      "id": "honda",
+      "name": "Honda",
+      "models_count": 12
+    }
+  ],
+  "meta": {
+    "total": 25,
+    "cached_at": "2025-07-14T00:00:00Z",
+    "cache_expires": "2025-07-15T00:00:00Z"
+  }
+}
+```
+
+### 6.5 Get Car Models by Make
+
+**Endpoint:** `GET /car-data/makes/{make_id}/models`
+
+**Description:** Get available models for a specific car make
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "camry",
+      "name": "Camry",
+      "years": ["2020", "2021", "2022", "2023", "2024"]
+    },
+    {
+      "id": "corolla",
+      "name": "Corolla",
+      "years": ["2019", "2020", "2021", "2022", "2023", "2024"]
+    }
+  ]
+}
+```
+
+### 6.6 Get Emirates
+
+**Endpoint:** `GET /emirates`
+
+**Description:** Get list of UAE emirates
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "dubai",
+      "name": "Dubai",
+      "active_garages": 25
+    },
+    {
+      "id": "abu-dhabi",
+      "name": "Abu Dhabi",
+      "active_garages": 18
+    },
+    {
+      "id": "sharjah",
+      "name": "Sharjah",
+      "active_garages": 12
+    }
+  ]
+}
+```
+
+---
+
+## 7. Admin Endpoints
+
+### 7.1 Get All Requests
+
+**Endpoint:** `GET /admin/requests`
+
+**Description:** Get paginated list of all fitting requests (admin only)
+
+**Headers:**
+```http
+X-API-Key: {admin_api_key}
+X-API-Secret: {admin_api_secret}
+```
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `per_page`: Items per page (default: 20, max: 100)
+- `status`: Filter by status
+- `emirate`: Filter by emirate
+- `date_from`: Filter from date (ISO 8601)
+- `date_to`: Filter to date (ISO 8601)
+- `search`: Search in customer details or car info
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 123,
+      "request_id": "FR_2025071401234",
+      "product_name": "Brake Pads Set",
+      "customer_email": "customer@example.com",
+      "car_info": "Toyota Camry",
+      "emirate": "Dubai",
+      "status": "quotes_received",
+      "quotes_count": 3,
+      "created_at": "2025-07-14T10:30:00Z"
+    }
+  ],
+  "meta": {
+    "total": 150,
+    "per_page": 20,
+    "current_page": 1,
+    "last_page": 8,
+    "from": 1,
+    "to": 20
+  }
+}
+```
+
+### 7.2 Get Request Details
+
+**Endpoint:** `GET /admin/requests/{request_id}`
+
+**Description:** Get detailed information about a specific request
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "request": {
+      "id": 123,
+      "request_id": "FR_2025071401234",
+      "product_id": 456,
+      "product_name": "Brake Pads Set",
+      "customer_email": "customer@example.com",
+      "customer_whatsapp": "+971501234567",
+      "car_make": "Toyota",
+      "car_model": "Camry",
+      "emirate": "Dubai",
+      "status": "quotes_received",
+      "created_at": "2025-07-14T10:30:00Z"
+    },
+    "quotes": [
+      {
+        "id": 789,
+        "garage_name": "Premium Auto Care",
+        "quote_amount": 250.00,
+        "estimated_time": "2 hours",
+        "notes": "Quality installation",
+        "status": "pending",
+        "submitted_at": "2025-07-14T14:20:00Z"
+      }
+    ],
+    "notifications": [
+      {
+        "type": "email",
+        "recipients": ["garage1@example.com", "garage2@example.com"],
+        "status": "completed",
+        "sent_at": "2025-07-14T10:35:00Z"
+      }
+    ],
+    "status_history": [
+      {
+        "old_status": "pending",
+        "new_status": "sent",
+        "changed_at": "2025-07-14T10:35:00Z",
+        "changed_by": "system"
+      }
+    ]
+  }
+}
+```
+
+### 7.3 Update Request Status
+
+**Endpoint:** `PATCH /admin/requests/{request_id}/status`
+
+**Description:** Update the status of a fitting request
+
+**Request Body:**
+```json
+{
+  "status": "completed",
+  "notes": "Customer confirmed installation completed"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "request_id": "FR_2025071401234",
+    "old_status": "quotes_received",
+    "new_status": "completed",
+    "updated_at": "2025-07-14T16:00:00Z"
+  }
+}
+```
+
+### 7.4 Get Analytics Dashboard
+
+**Endpoint:** `GET /admin/analytics`
+
+**Description:** Get analytics data for the admin dashboard
+
+**Query Parameters:**
+- `period`: Time period (today, week, month, quarter, year)
+- `emirate`: Filter by emirate
+- `compare`: Compare with previous period (true/false)
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "total_requests": 156,
+      "active_requests": 45,
+      "completed_requests": 98,
+      "average_quotes_per_request": 2.8,
+      "average_response_time": "4.2 hours"
+    },
+    "trends": {
+      "requests_by_day": [
+        {"date": "2025-07-14", "count": 12},
+        {"date": "2025-07-13", "count": 8}
+      ],
+      "quotes_by_day": [
+        {"date": "2025-07-14", "count": 34},
+        {"date": "2025-07-13", "count": 22}
+      ]
+    },
+    "top_emirates": [
+      {"emirate": "Dubai", "requests": 78, "percentage": 50.0},
+      {"emirate": "Abu Dhabi", "requests": 45, "percentage": 28.8}
+    ],
+    "top_car_makes": [
+      {"make": "Toyota", "requests": 34, "percentage": 21.8},
+      {"make": "Honda", "requests": 28, "percentage": 17.9}
+    ]
+  }
+}
+```
+
+### 7.5 Manage Garages
+
+**Endpoint:** `GET /admin/garages`
+
+**Description:** Get list of registered garages
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 123,
+      "name": "Premium Auto Care",
+      "email": "info@premiumauto.ae",
+      "emirate": "Dubai",
+      "status": "active",
+      "total_quotes": 45,
+      "average_rating": 4.7,
+      "response_rate": 85.2,
+      "last_activity": "2025-07-14T14:20:00Z"
+    }
+  ]
+}
+```
+
+### 7.6 System Health Check
+
+**Endpoint:** `GET /admin/health`
+
+**Description:** Get system health status
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "overall_status": "healthy",
+    "checks": {
+      "database_connection": {
+        "status": "healthy",
+        "response_time": 15,
+        "last_checked": "2025-07-14T16:00:00Z"
+      },
+      "email_service": {
+        "status": "healthy",
+        "last_email_sent": "2025-07-14T15:45:00Z"
+      },
+      "whatsapp_api": {
+        "status": "healthy",
+        "last_message_sent": "2025-07-14T15:30:00Z"
+      },
+      "queue_processing": {
+        "status": "healthy",
+        "pending_items": 3,
+        "last_processed": "2025-07-14T15:59:00Z"
+      }
+    },
+    "performance": {
+      "average_response_time": 245,
+      "requests_per_hour": 127,
+      "error_rate": 0.02
+    }
+  }
+}
+```
+
+---
+
+## 8. Webhook Endpoints
+
+### 8.1 WhatsApp Webhook
+
+**Endpoint:** `POST /webhooks/whatsapp`
+
+**Description:** Receive WhatsApp webhook notifications
+
+**Headers:**
+```http
+X-Hub-Signature-256: sha256={signature}
+```
+
+**Request Body (Message Status Update):**
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "PHONE_NUMBER_ID",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "971501234567",
+              "phone_number_id": "PHONE_NUMBER_ID"
+            },
+            "statuses": [
+              {
+                "id": "MESSAGE_ID",
+                "status": "delivered",
+                "timestamp": "1642680000",
+                "recipient_id": "971501234567"
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "processed": true
+}
+```
+
+### 8.2 Quote Submission Webhook
+
+**Endpoint:** `POST /webhooks/quote-received`
+
+**Description:** Internal webhook for quote submission processing
+
+**Request Body:**
+```json
+{
+  "event": "quote_submitted",
+  "data": {
+    "quote_id": 789,
+    "request_id": "FR_2025071401234",
+    "garage_id": 123,
+    "quote_amount": 250.00
+  }
+}
+```
+
+---
+
+## 9. Security
+
+### 9.1 Input Validation
+
+All endpoints implement comprehensive input validation:
+
+- **Email validation:** RFC 5322 compliant
+- **Phone validation:** E.164 format with country code
+- **Sanitization:** HTML entities, SQL injection prevention
+- **Length limits:** All string fields have maximum length constraints
+- **Type validation:** Strict type checking for all parameters
+
+### 9.2 CSRF Protection
+
+All state-changing endpoints require CSRF tokens:
+
+```http
+X-CSRF-Token: {csrf_token}
+```
+
+### 9.3 SQL Injection Prevention
+
+- Prepared statements for all database queries
+- Parameterized queries using WordPress $wpdb methods
+- Input sanitization using WordPress sanitize functions
+
+### 9.4 XSS Prevention
+
+- Output escaping for all dynamic content
+- Content Security Policy headers
+- Input validation and sanitization
+
+### 9.5 Data Encryption
+
+Sensitive data is encrypted at rest:
+
+- Customer contact information
+- Internal communications
+- API tokens and secrets
+
+---
+
+## 10. Response Examples
+
+### 10.1 Successful Response Format
+```json
+{
+  "success": true,
+  "data": {
+    // Response data here
+  },
+  "meta": {
+    "timestamp": "2025-07-14T10:30:00Z",
+    "request_id": "req_123456789",
+    "api_version": "v1"
+  }
+}
+```
+
+### 10.2 Error Response Format
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "The given data was invalid.",
+    "details": {
+      "customer_email": ["The email field is required."],
+      "car_make": ["The selected car make is invalid."]
+    }
+  },
+  "meta": {
+    "timestamp": "2025-07-14T10:30:00Z",
+    "request_id": "req_123456789",
+    "api_version": "v1"
+  }
+}
+```
+
+### 10.3 Validation Error Response
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Validation failed",
+    "details": {
+      "customer_email": [
+        "The email field is required.",
+        "The email must be a valid email address."
+      ],
+      "customer_whatsapp": [
+        "The whatsapp field is required.",
+        "The whatsapp must be a valid phone number."
+      ],
+      "car_make": [
+        "The selected car make is invalid."
+      ]
+    }
+  }
+}
+```
+
+### 10.4 Rate Limit Error Response
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Too many requests. Please try again later.",
+    "retry_after": 300
+  }
+}
+```
+
+---
+
+## 11. SDKs and Integration
+
+### 11.1 JavaScript SDK Example
+```javascript
+// Initialize the SDK
+const fittingRequestAPI = new FittingRequestAPI({
+  baseURL: 'https://partsonclick.ae/wp-json/fitting-request/v1/',
+  apiKey: 'your-api-key'
+});
+
+// Submit a fitting request
+try {
+  const response = await fittingRequestAPI.submitRequest({
+    product_id: 123,
+    emirate: 'Dubai',
+    car_make: 'Toyota',
+    car_model: 'Camry',
+    customer_email: 'customer@example.com',
+    customer_whatsapp: '+971501234567'
+  });
+  
+  console.log('Request submitted:', response.data.request_id);
+} catch (error) {
+  console.error('Error:', error.message);
+}
+```
+
+### 11.2 PHP SDK Example
+```php
+// Initialize the SDK
+$api = new FittingRequestAPI([
+    'base_url' => 'https://partsonclick.ae/wp-json/fitting-request/v1/',
+    'api_key' => 'your-api-key',
+    'api_secret' => 'your-api-secret'
+]);
+
+// Get request status
+try {
+    $status = $api->getRequestStatus('FR_2025071401234', $tracking_token);
+    echo "Status: " . $status['data']['status'];
+} catch (FittingRequestException $e) {
+    echo "Error: " . $e->getMessage();
+}
+```
+
+---
+
+## 12. Testing and Documentation
+
+### 12.1 Postman Collection
+A complete Postman collection is available with:
+- Pre-configured environments (staging, production)
+- Authentication helpers
+- Example requests for all endpoints
+- Automated tests for response validation
+
+### 12.2 API Testing
+```bash
+# Run API tests
+curl -X POST https://partsonclick.ae/wp-json/fitting-request/v1/requests \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 123,
+    "emirate": "Dubai",
+    "car_make": "Toyota",
+    "car_model": "Camry",
+    "customer_email": "test@example.com",
+    "customer_whatsapp": "+971501234567"
+  }'
+```
+
+### 12.3 Mock Server
+A mock server is available for development and testing:
+- **URL:** `https://mock-api.partsonclick.ae/fitting-request/v1/`
+- **Features:** Realistic responses, configurable delays, error simulation
+
+---
+
+This comprehensive API specification provides all the necessary information for developers to integrate with the WooCommerce Vehicle Parts Fitting Request System, ensuring reliable and secure communication between all system components.

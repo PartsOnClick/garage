@@ -1,0 +1,851 @@
+# Lovable.dev Project Package
+## WooCommerce Vehicle Parts Fitting Request System
+
+### 📦 **Project Initialization Document**
+
+```json
+{
+  "project": {
+    "name": "WooCommerce Fitting Request System",
+    "version": "3.0.0",
+    "type": "wordpress-plugin",
+    "framework": "WordPress/WooCommerce",
+    "language": "PHP 8.0+",
+    "frontend": "Vanilla JS + SCSS",
+    "database": "MySQL 8.0+",
+    "estimated_hours": "80-100",
+    "complexity": "high",
+    "priority": "high"
+  },
+  "requirements": {
+    "php_version": ">=8.0",
+    "wordpress_version": ">=5.8",
+    "woocommerce_version": ">=6.0",
+    "mysql_version": ">=8.0",
+    "ssl_required": true,
+    "memory_limit": "256M"
+  }
+}
+```
+
+### 🏗️ **Technical Architecture Document**
+
+#### System Architecture Overview
+```mermaid
+graph TB
+    A[Customer] --> B[WordPress Frontend]
+    B --> C[Fitting Request Plugin]
+    C --> D[Database Layer]
+    C --> E[Notification Queue]
+    E --> F[Email Service]
+    E --> G[WhatsApp API]
+    C --> H[Admin Dashboard]
+    I[Garage] --> J[Quote Submission]
+    J --> C
+    
+    subgraph "Security Layer"
+        K[Rate Limiter]
+        L[Token Manager]
+        M[Input Validator]
+    end
+    
+    C --> K
+    C --> L
+    C --> M
+```
+
+#### Database Architecture
+```sql
+-- Core Tables Relationship
+/*
+wp_fitting_requests (1) --> (N) wp_fitting_quotes
+wp_fitting_requests (1) --> (N) wp_fitting_notification_queue
+wp_fitting_requests (1) --> (N) wp_fitting_request_status_log
+wp_posts[garage] (1) --> (N) wp_fitting_quotes
+*/
+
+-- Performance Indexes Strategy
+CREATE INDEX idx_composite_search ON wp_fitting_requests(selected_emirate, status, request_date);
+CREATE INDEX idx_queue_processing ON wp_fitting_notification_queue(status, priority, scheduled_for);
+CREATE FULLTEXT INDEX ft_admin_search ON wp_fitting_requests(car_make, car_model);
+```
+
+#### Security Architecture
+```php
+// Security Layers Implementation
+class SecurityStack {
+    // Layer 1: Input Validation
+    private $validator;
+    
+    // Layer 2: Rate Limiting
+    private $rateLimiter;
+    
+    // Layer 3: Token Authentication
+    private $tokenManager;
+    
+    // Layer 4: Data Encryption
+    private $encryption;
+    
+    // Layer 5: Audit Logging
+    private $auditLogger;
+}
+```
+
+### 📋 **User Stories & Acceptance Criteria**
+
+#### Epic 1: Customer Fitting Request Journey
+```gherkin
+Feature: Customer submits fitting request
+  As a customer browsing WooCommerce products
+  I want to request fitting services for vehicle parts
+  So that I can get professional installation
+
+  Scenario: Successful fitting request submission
+    Given I am viewing a vehicle part product page
+    And the "Need Fitting?" toggle is visible
+    When I click the toggle
+    Then I should see the fitting request form
+    
+    When I fill in valid form data:
+      | Field          | Value              |
+      | Emirate        | Dubai              |
+      | Car Make       | Toyota             |
+      | Car Model      | Camry              |
+      | Email          | test@example.com   |
+      | WhatsApp       | +971501234567      |
+    And I submit the form
+    Then I should see a success message with request ID
+    And I should receive a confirmation email
+    And garages in Dubai should be notified
+
+  Scenario: Form validation errors
+    Given I am on the fitting request form
+    When I submit with invalid email "invalid-email"
+    Then I should see "Invalid email format" error
+    And the form should not be submitted
+
+  Scenario: Rate limiting protection
+    Given I have submitted 5 requests in the last 5 minutes
+    When I try to submit another request
+    Then I should see "Too many requests" error
+    And the form should be disabled for 5 minutes
+```
+
+#### Epic 2: Garage Quote Submission
+```gherkin
+Feature: Garage submits quote via secure link
+  As a garage owner
+  I want to submit quotes for fitting requests
+  So that I can win new business
+
+  Scenario: Valid quote submission
+    Given I received a fitting request notification
+    And I click the secure quote submission link
+    When I fill in the quote form:
+      | Field           | Value                    |
+      | Quote Amount    | 250.00                   |
+      | Estimated Time  | 2 hours                  |
+      | Notes          | Professional service     |
+    And I submit the quote
+    Then the customer should be notified
+    And the quote should appear in admin dashboard
+
+  Scenario: Expired token handling
+    Given I have a quote link that expired 8 days ago
+    When I try to access the link
+    Then I should see "Link expired" message
+    And I should see contact information for support
+```
+
+#### Epic 3: Admin Management
+```gherkin
+Feature: Admin manages fitting requests
+  As a site administrator
+  I want to monitor and manage fitting requests
+  So that I can ensure service quality
+
+  Scenario: View requests dashboard
+    Given I am logged in as admin
+    When I navigate to WooCommerce > Fitting Requests
+    Then I should see a list of all requests
+    And I should be able to filter by emirate
+    And I should be able to export data to CSV
+
+  Scenario: Approve garage registration
+    Given a new garage has submitted registration
+    When I review the garage details
+    And I click "Approve"
+    Then the garage should be marked as active
+    And the garage should receive approval notification
+```
+
+### 🎨 **UI/UX Design Specifications**
+
+#### Component Library
+```scss
+// Design Tokens
+:root {
+  // Colors
+  --primary-color: #e74c3c;
+  --secondary-color: #3498db;
+  --success-color: #27ae60;
+  --warning-color: #f39c12;
+  --error-color: #e74c3c;
+  
+  // Typography
+  --font-family-primary: 'Arial', sans-serif;
+  --font-size-base: 16px;
+  --line-height-base: 1.5;
+  
+  // Spacing
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  
+  // Breakpoints
+  --breakpoint-sm: 576px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 992px;
+  --breakpoint-xl: 1200px;
+}
+
+// Component: Fitting Request Form
+.fitting-request-form {
+  max-width: 500px;
+  padding: var(--spacing-lg);
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  
+  &__toggle {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: 4px;
+    cursor: pointer;
+    
+    &:hover {
+      background: darken(var(--primary-color), 10%);
+    }
+  }
+  
+  &__field {
+    margin-bottom: var(--spacing-md);
+    
+    label {
+      display: block;
+      margin-bottom: var(--spacing-xs);
+      font-weight: 600;
+    }
+    
+    input, select {
+      width: 100%;
+      padding: var(--spacing-sm);
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      
+      &:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+      }
+      
+      &.error {
+        border-color: var(--error-color);
+      }
+    }
+  }
+  
+  &__error {
+    color: var(--error-color);
+    font-size: 0.875rem;
+    margin-top: var(--spacing-xs);
+  }
+  
+  &__submit {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+    
+    &:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .fitting-request-form {
+    margin: var(--spacing-sm);
+    padding: var(--spacing-md);
+  }
+}
+```
+
+#### Mobile-First Responsive Design
+```css
+/* Mobile First Approach */
+.fitting-request-form {
+  /* Mobile styles (default) */
+  width: 100%;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* Tablet styles */
+@media (min-width: 768px) {
+  .fitting-request-form {
+    max-width: 600px;
+    padding: 1.5rem;
+  }
+}
+
+/* Desktop styles */
+@media (min-width: 1024px) {
+  .fitting-request-form {
+    max-width: 500px;
+    padding: 2rem;
+  }
+}
+
+/* Large desktop styles */
+@media (min-width: 1200px) {
+  .fitting-request-form {
+    max-width: 600px;
+  }
+}
+```
+
+### 🔌 **API Specification Document**
+
+#### AJAX Endpoints
+```yaml
+openapi: 3.0.0
+info:
+  title: Fitting Request System API
+  version: 3.0.0
+  description: Internal API for WooCommerce Fitting Request System
+
+paths:
+  /wp-admin/admin-ajax.php:
+    post:
+      summary: Submit fitting request
+      parameters:
+        - name: action
+          in: formData
+          required: true
+          schema:
+            type: string
+            enum: [submit_fitting_request]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - product_id
+                - emirate
+                - car_make
+                - car_model
+                - nonce
+              properties:
+                product_id:
+                  type: integer
+                  example: 123
+                emirate:
+                  type: string
+                  example: "Dubai"
+                car_make:
+                  type: string
+                  example: "Toyota"
+                car_model:
+                  type: string
+                  example: "Camry"
+                customer_email:
+                  type: string
+                  format: email
+                  example: "customer@example.com"
+                customer_whatsapp:
+                  type: string
+                  pattern: '^\+971[0-9]{9}$'
+                  example: "+971501234567"
+                nonce:
+                  type: string
+                  example: "abc123def456"
+      responses:
+        200:
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      request_id:
+                        type: string
+                      message:
+                        type: string
+                      status_url:
+                        type: string
+        400:
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  data:
+                    type: object
+                    properties:
+                      errors:
+                        type: array
+                        items:
+                          type: string
+        429:
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "Too many requests. Please try again later."
+                      retry_after:
+                        type: integer
+                        example: 300
+
+  /wp-admin/admin-ajax.php?action=check_request_status:
+    post:
+      summary: Check request status
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - request_id
+                - nonce
+              properties:
+                request_id:
+                  type: string
+                  example: "REQ_20250714_001"
+                nonce:
+                  type: string
+      responses:
+        200:
+          description: Status information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [pending, sent, quotes_received, completed]
+                      product_name:
+                        type: string
+                      quotes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            garage_name:
+                              type: string
+                            amount:
+                              type: number
+                            estimated_time:
+                              type: string
+                            notes:
+                              type: string
+```
+
+#### WhatsApp Webhook Specification
+```yaml
+  /wp-json/fitting-request/v1/whatsapp-webhook:
+    post:
+      summary: WhatsApp webhook endpoint
+      security:
+        - webhook_signature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                object:
+                  type: string
+                  example: "whatsapp_business_account"
+                entry:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        200:
+          description: Webhook processed
+        403:
+          description: Invalid signature
+```
+
+### 🔒 **Security & Compliance Document**
+
+#### Security Checklist
+```markdown
+## Security Implementation Checklist
+
+### Input Validation & Sanitization
+- [ ] All user inputs sanitized using WordPress functions
+- [ ] SQL injection prevention with prepared statements
+- [ ] XSS prevention with proper output escaping
+- [ ] CSRF protection with WordPress nonces
+- [ ] File upload restrictions and validation
+
+### Authentication & Authorization
+- [ ] Token-based authentication for quote submissions
+- [ ] Role-based access control for admin functions
+- [ ] Rate limiting on all public endpoints
+- [ ] Session management and timeout
+
+### Data Protection
+- [ ] Sensitive data encryption at rest
+- [ ] HTTPS enforcement for all communications
+- [ ] Secure API token storage
+- [ ] PII data anonymization options
+
+### Audit & Monitoring
+- [ ] Comprehensive audit logging
+- [ ] Security event monitoring
+- [ ] Failed login attempt tracking
+- [ ] Suspicious activity detection
+
+### Compliance
+- [ ] UAE Data Protection Law compliance
+- [ ] GDPR compliance for EU customers
+- [ ] Data retention policy implementation
+- [ ] Right to be forgotten functionality
+```
+
+#### UAE Data Protection Compliance
+```php
+class DataProtectionCompliance {
+    // UAE Data Protection Law compliance
+    public function handleDataSubjectRequest($type, $customer_email) {
+        switch ($type) {
+            case 'access':
+                return $this->exportCustomerData($customer_email);
+            case 'delete':
+                return $this->anonymizeCustomerData($customer_email);
+            case 'portability':
+                return $this->exportPortableData($customer_email);
+        }
+    }
+    
+    private function exportCustomerData($email) {
+        global $wpdb;
+        
+        $data = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT request_id, car_make, car_model, selected_emirate, 
+                        request_date, status 
+                FROM wp_fitting_requests 
+                WHERE customer_email = %s",
+                $email
+            )
+        );
+        
+        return [
+            'personal_data' => $data,
+            'exported_date' => current_time('mysql'),
+            'retention_period' => '6 months'
+        ];
+    }
+}
+```
+
+### 🚀 **Environment Setup Guide**
+
+#### Local Development Environment
+```bash
+# Development Environment Setup Script
+#!/bin/bash
+
+echo "Setting up Fitting Request System development environment..."
+
+# Check PHP version
+php_version=$(php -v | head -n 1 | cut -d " " -f 2 | cut -c 1-3)
+if [ $(echo "$php_version < 8.0" | bc) -eq 1 ]; then
+    echo "Error: PHP 8.0+ required. Current version: $php_version"
+    exit 1
+fi
+
+# Install Composer dependencies
+composer install --dev
+
+# Install Node.js dependencies
+npm install
+
+# Set up WordPress test environment
+bash bin/install-wp-tests.sh wordpress_test root '' localhost latest
+
+# Copy environment file
+cp .env.example .env
+
+# Generate encryption key
+php -r "echo 'ENCRYPTION_KEY=' . bin2hex(random_bytes(32)) . PHP_EOL;" >> .env
+
+# Build assets
+npm run build
+
+# Run initial tests
+composer test
+
+echo "Development environment setup complete!"
+echo "Don't forget to:"
+echo "1. Configure your .env file"
+echo "2. Set up your local WordPress instance"
+echo "3. Activate WooCommerce plugin"
+echo "4. Configure WhatsApp API credentials"
+```
+
+#### Docker Development Environment
+```dockerfile
+# Dockerfile for development
+FROM wordpress:6.3-php8.0-apache
+
+# Install additional PHP extensions
+RUN docker-php-ext-install mysqli pdo pdo_mysql
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
+
+# Set up working directory
+WORKDIR /var/www/html/wp-content/plugins/fitting-request-system
+
+# Copy plugin files
+COPY . .
+
+# Install dependencies
+RUN composer install --no-dev --optimize-autoloader
+RUN npm ci --only=production
+
+# Build assets
+RUN npm run build
+
+# Set permissions
+RUN chown -R www-data:www-data /var/www/html
+```
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  wordpress:
+    build: .
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - ./:/var/www/html/wp-content/plugins/fitting-request-system
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+      MYSQL_ROOT_PASSWORD: rootpassword
+    volumes:
+      - db_data:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: rootpassword
+
+volumes:
+  db_data:
+```
+
+### 📊 **Testing Strategy Document**
+
+#### Testing Pyramid
+```php
+// Unit Tests (70% of test coverage)
+class FormValidationTest extends PHPUnit\Framework\TestCase {
+    public function testEmailValidation() {
+        $validator = new FittingRequestValidator();
+        
+        $this->assertTrue($validator->validateEmail('test@example.com'));
+        $this->assertFalse($validator->validateEmail('invalid-email'));
+        $this->assertFalse($validator->validateEmail(''));
+    }
+}
+
+// Integration Tests (20% of test coverage)
+class DatabaseIntegrationTest extends WP_UnitTestCase {
+    public function testRequestCreationWorkflow() {
+        $request_data = [
+            'product_id' => 123,
+            'emirate' => 'Dubai',
+            'car_make' => 'Toyota',
+            'car_model' => 'Camry',
+            'customer_email' => 'test@example.com'
+        ];
+        
+        $request_handler = new RequestHandler();
+        $result = $request_handler->createRequest($request_data);
+        
+        $this->assertNotFalse($result);
+        $this->assertDatabaseHas('wp_fitting_requests', [
+            'product_id' => 123,
+            'emirate' => 'Dubai'
+        ]);
+    }
+}
+
+// End-to-End Tests (10% of test coverage)
+class CustomerJourneyTest extends WP_UnitTestCase {
+    public function testCompleteCustomerJourney() {
+        // 1. Customer submits request
+        $this->submitFittingRequest();
+        
+        // 2. Garages receive notifications
+        $this->assertNotificationsQueued();
+        
+        // 3. Garage submits quote
+        $this->submitGarageQuote();
+        
+        // 4. Customer receives notification
+        $this->assertCustomerNotified();
+        
+        // 5. Customer checks status
+        $this->checkRequestStatus();
+    }
+}
+```
+
+#### Performance Testing
+```php
+class PerformanceTest extends PHPUnit\Framework\TestCase {
+    public function testFormSubmissionPerformance() {
+        $start_time = microtime(true);
+        
+        // Simulate 100 concurrent form submissions
+        for ($i = 0; $i < 100; $i++) {
+            $this->submitTestRequest();
+        }
+        
+        $end_time = microtime(true);
+        $duration = $end_time - $start_time;
+        
+        // Should handle 100 requests within 10 seconds
+        $this->assertLessThan(10.0, $duration);
+    }
+    
+    public function testDatabaseQueryPerformance() {
+        // Test complex admin dashboard query
+        $start_time = microtime(true);
+        
+        global $wpdb;
+        $results = $wpdb->get_results(
+            "SELECT r.*, COUNT(q.id) as quote_count 
+            FROM wp_fitting_requests r 
+            LEFT JOIN wp_fitting_quotes q ON r.request_id = q.request_id 
+            WHERE r.request_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            GROUP BY r.id 
+            ORDER BY r.request_date DESC 
+            LIMIT 100"
+        );
+        
+        $end_time = microtime(true);
+        $duration = $end_time - $start_time;
+        
+        // Query should complete within 1 second
+        $this->assertLessThan(1.0, $duration);
+    }
+}
+```
+
+### 📋 **Project Checklist for Lovable.dev**
+
+#### Pre-Development Checklist
+- [ ] SRS reviewed and approved
+- [ ] UI/UX designs finalized
+- [ ] API specifications documented
+- [ ] Database schema designed
+- [ ] Security requirements defined
+- [ ] Testing strategy planned
+- [ ] Environment setup guides prepared
+
+#### Development Phase Checklist
+- [ ] Repository initialized with proper structure
+- [ ] CI/CD pipeline configured
+- [ ] Development environment set up
+- [ ] Core architecture implemented
+- [ ] Unit tests written
+- [ ] Integration tests implemented
+- [ ] Security measures implemented
+- [ ] Performance optimization applied
+
+#### Pre-Deployment Checklist
+- [ ] All tests passing
+- [ ] Security audit completed
+- [ ] Performance benchmarks met
+- [ ] Documentation completed
+- [ ] Staging environment tested
+- [ ] Backup procedures tested
+- [ ] Monitoring setup verified
+
+#### Post-Deployment Checklist
+- [ ] Production deployment successful
+- [ ] Health checks passing
+- [ ] Monitoring alerts configured
+- [ ] User training completed
+- [ ] Support documentation available
+- [ ] Maintenance schedule established
+```
+
+This comprehensive documentation package provides everything Lovable.dev needs to successfully implement the project. The structured approach ensures clear communication, reduces development risks, and enables efficient project execution.

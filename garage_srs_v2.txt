@@ -1,0 +1,1656 @@
+# WooCommerce Vehicle Parts Fitting Request System
+## Software Requirements Specification (SRS)
+**Version:** 3.0  
+**Date:** July 14, 2025  
+**Project:** Lead Generation Feature for Garage Fitting Services  
+**Client:** partsonclick.ae  
+**Development Framework:** Lovable.dev Compatible
+
+---
+
+## 1. PROJECT OVERVIEW
+
+### 1.1 Purpose
+Develop a robust, bug-free WooCommerce-integrated lead generation system to connect customers needing vehicle part fitting services with registered garages in their emirate. The system prioritizes reliability, security, and ease of implementation using WordPress infrastructure with minimal external dependencies.
+
+### 1.2 Scope
+- **Frontend:** Customer-facing fitting request form, request status portal, multilingual support (English/Arabic)
+- **Backend:** Automated garage management, resilient notification system, customer feedback
+- **Admin Panel:** Comprehensive dashboard with analytics, audit logs, and monitoring
+- **Integration:** WooCommerce hooks, WhatsApp Cloud API (with fallback), email notifications
+- **Security:** Token-based authentication, data encryption, comprehensive error handling
+
+### 1.3 Implementation Approach - Lovable.dev Friendly
+**Phase 1:** Core Foundation (Weeks 1-2)
+- Error-first development approach
+- Comprehensive input validation
+- Database optimization
+- Basic queue system
+
+**Phase 2:** Secure Integration (Week 3)
+- Token-based security implementation
+- WhatsApp API with proper fallbacks
+- Rate limiting and monitoring
+
+**Phase 3:** Performance & Polish (Week 4)
+- Caching strategies
+- Background processing
+- Analytics and reporting
+
+**Phase 4:** Testing & Deployment (Week 5)
+- Automated testing suite
+- Performance optimization
+- Documentation and deployment
+
+**Target:** Ultra-reliable, low-cost solution with zero external dependencies beyond WordPress core.
+
+---
+
+## 2. ENHANCED FUNCTIONAL REQUIREMENTS
+
+### 2.1 Frontend Features
+
+#### 2.1.1 Product Page Integration
+```php
+// Hook Implementation
+add_action('woocommerce_single_product_summary', 'display_fitting_toggle', 25);
+```
+
+**Toggle Button:** "Need Fitting?" with loading states and error handling
+**Conditional Form Display:** Progressive enhancement with fallback
+**Enhanced Form Fields:**
+- **Dropdown (Emirate):** Dynamic taxonomy with validation
+- **Dropdown (Car Make):** Cached, searchable dropdown
+- **Dropdown (Car Model):** AJAX-loaded based on make selection
+- **Input (Email):** Real-time validation with sanitization
+- **Input (WhatsApp):** Country code dropdown (+971 default), format validation
+- **Validation:** Multi-layer validation (client + server + database)
+
+**Advanced Features:**
+- Form state persistence in sessionStorage
+- Progressive form loading
+- Comprehensive error states
+- Accessibility compliance (WCAG 2.1 AA)
+
+#### 2.1.2 Enhanced User Experience
+```javascript
+// Progressive Enhancement
+class FittingRequestForm {
+    constructor() {
+        this.initializeForm();
+        this.setupValidation();
+        this.handleSubmission();
+    }
+    
+    initializeForm() {
+        // Lazy load form components
+        // Set up error boundaries
+        // Initialize analytics tracking
+    }
+}
+```
+
+**Security Features:**
+- CSRF protection on all forms
+- Rate limiting per IP/user
+- Honeypot anti-spam fields
+- Input sanitization at multiple levels
+
+**Performance Optimizations:**
+- Debounced AJAX requests
+- Cached dropdown data
+- Lazy loading of heavy components
+- Optimized bundle sizes
+
+#### 2.1.3 Request Status Portal
+```php
+// Shortcode with enhanced security
+[fitting_request_status]
+```
+
+**Security Enhancements:**
+- Secure token-based lookup
+- Rate limiting on status checks
+- Audit logging of all access attempts
+- Session-based access control
+
+---
+
+## 3. ENHANCED BACKEND ARCHITECTURE
+
+### 3.1 Error-First Development Approach
+
+#### 3.1.1 Comprehensive Error Handling System
+```php
+class FittingRequestErrorHandler {
+    private static $instance = null;
+    private $log_table = 'wp_fitting_error_logs';
+    
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    public function logError($error, $context = [], $severity = 'error') {
+        global $wpdb;
+        
+        $log_entry = [
+            'error_message' => $error,
+            'context' => wp_json_encode($context),
+            'severity' => $severity,
+            'user_id' => get_current_user_id(),
+            'ip_address' => $this->getClientIP(),
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'timestamp' => current_time('mysql'),
+            'stack_trace' => wp_debug_backtrace_summary()
+        ];
+        
+        $wpdb->insert($this->log_table, $log_entry);
+        
+        // Alert admin for critical errors
+        if ($severity === 'critical') {
+            $this->alertAdmin($error, $context);
+        }
+    }
+    
+    public function handleApiFailure($service, $fallback_action = null) {
+        $this->logError("API failure for service: {$service}", [], 'warning');
+        
+        if ($fallback_action && is_callable($fallback_action)) {
+            return $fallback_action();
+        }
+        
+        return false;
+    }
+    
+    private function getClientIP() {
+        $ip_keys = ['HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'];
+        foreach ($ip_keys as $key) {
+            if (array_key_exists($key, $_SERVER) === true) {
+                foreach (explode(',', $_SERVER[$key]) as $ip) {
+                    $ip = trim($ip);
+                    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+                        return $ip;
+                    }
+                }
+            }
+        }
+        return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    }
+}
+```
+
+#### 3.1.2 Queue System for Reliable Processing
+```php
+class NotificationQueue {
+    private $queue_table = 'wp_fitting_notification_queue';
+    
+    public function addToQueue($request_id, $notification_type, $recipients, $priority = 5) {
+        global $wpdb;
+        
+        $queue_item = [
+            'request_id' => $request_id,
+            'notification_type' => $notification_type,
+            'recipients' => wp_json_encode($recipients),
+            'priority' => $priority,
+            'status' => 'pending',
+            'attempts' => 0,
+            'created_at' => current_time('mysql'),
+            'scheduled_for' => current_time('mysql')
+        ];
+        
+        return $wpdb->insert($this->queue_table, $queue_item);
+    }
+    
+    public function processQueue($batch_size = 10) {
+        global $wpdb;
+        
+        $items = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$this->queue_table} 
+                WHERE status = 'pending' 
+                AND scheduled_for <= %s 
+                AND attempts < 3 
+                ORDER BY priority DESC, created_at ASC 
+                LIMIT %d",
+                current_time('mysql'),
+                $batch_size
+            )
+        );
+        
+        foreach ($items as $item) {
+            $this->processQueueItem($item);
+        }
+    }
+    
+    private function processQueueItem($item) {
+        global $wpdb;
+        
+        try {
+            $wpdb->update(
+                $this->queue_table,
+                ['status' => 'processing', 'attempts' => $item->attempts + 1],
+                ['id' => $item->id]
+            );
+            
+            $success = $this->executeNotification($item);
+            
+            if ($success) {
+                $wpdb->update(
+                    $this->queue_table,
+                    ['status' => 'completed', 'completed_at' => current_time('mysql')],
+                    ['id' => $item->id]
+                );
+            } else {
+                $this->handleFailedNotification($item);
+            }
+            
+        } catch (Exception $e) {
+            FittingRequestErrorHandler::getInstance()->logError(
+                "Queue processing failed for item {$item->id}: " . $e->getMessage(),
+                ['item' => $item],
+                'error'
+            );
+            
+            $this->handleFailedNotification($item);
+        }
+    }
+}
+```
+
+### 3.2 Enhanced Security Layer
+
+#### 3.2.1 Token-Based Security System
+```php
+class QuoteTokenManager {
+    private static $salt = 'fitting_request_salt_2025';
+    private static $token_lifetime = 7 * DAY_IN_SECONDS; // 7 days
+    
+    public static function generateToken($request_id, $garage_id, $action = 'quote') {
+        $timestamp = time();
+        $data = [
+            'request_id' => $request_id,
+            'garage_id' => $garage_id,
+            'action' => $action,
+            'timestamp' => $timestamp,
+            'expires' => $timestamp + self::$token_lifetime
+        ];
+        
+        $token_data = base64_encode(wp_json_encode($data));
+        $signature = hash_hmac('sha256', $token_data, self::$salt . wp_salt());
+        
+        return $token_data . '.' . $signature;
+    }
+    
+    public static function validateToken($token, $request_id, $garage_id, $action = 'quote') {
+        if (empty($token)) {
+            return false;
+        }
+        
+        $parts = explode('.', $token);
+        if (count($parts) !== 2) {
+            return false;
+        }
+        
+        [$token_data, $signature] = $parts;
+        
+        // Verify signature
+        $expected_signature = hash_hmac('sha256', $token_data, self::$salt . wp_salt());
+        if (!hash_equals($expected_signature, $signature)) {
+            return false;
+        }
+        
+        // Decode and validate data
+        $data = json_decode(base64_decode($token_data), true);
+        if (!$data) {
+            return false;
+        }
+        
+        // Check expiration
+        if (time() > $data['expires']) {
+            return false;
+        }
+        
+        // Validate token data
+        return $data['request_id'] === $request_id && 
+               $data['garage_id'] == $garage_id && 
+               $data['action'] === $action;
+    }
+    
+    public static function revokeToken($token) {
+        // Add to revoked tokens list (implement as needed)
+        global $wpdb;
+        $wpdb->insert(
+            'wp_fitting_revoked_tokens',
+            [
+                'token_hash' => hash('sha256', $token),
+                'revoked_at' => current_time('mysql')
+            ]
+        );
+    }
+}
+```
+
+#### 3.2.2 Data Encryption Layer
+```php
+class DataEncryption {
+    private static function getEncryptionKey() {
+        $key = get_option('fitting_request_encryption_key');
+        if (!$key) {
+            $key = wp_generate_password(32, false);
+            update_option('fitting_request_encryption_key', $key);
+        }
+        return $key;
+    }
+    
+    public static function encrypt($data) {
+        $key = self::getEncryptionKey();
+        $iv = random_bytes(16);
+        $encrypted = openssl_encrypt($data, 'AES-256-CBC', $key, 0, $iv);
+        return base64_encode($iv . $encrypted);
+    }
+    
+    public static function decrypt($encrypted_data) {
+        $key = self::getEncryptionKey();
+        $data = base64_decode($encrypted_data);
+        $iv = substr($data, 0, 16);
+        $encrypted = substr($data, 16);
+        return openssl_decrypt($encrypted, 'AES-256-CBC', $key, 0, $iv);
+    }
+}
+```
+
+---
+
+## 4. ENHANCED DATABASE DESIGN
+
+### 4.1 Optimized Database Schema
+
+#### 4.1.1 Main Tables with Performance Optimization
+```sql
+-- Enhanced Fitting Requests Table
+CREATE TABLE wp_fitting_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    request_id VARCHAR(64) UNIQUE NOT NULL,
+    product_id INT NOT NULL,
+    car_make VARCHAR(100) NOT NULL,
+    car_model VARCHAR(100) NOT NULL,
+    customer_email VARCHAR(255),
+    customer_whatsapp VARCHAR(50),
+    selected_emirate VARCHAR(50) NOT NULL,
+    request_date DATETIME NOT NULL,
+    garages_notified INT DEFAULT 0,
+    status ENUM('pending', 'sent', 'quotes_received', 'completed', 'cancelled') DEFAULT 'pending',
+    priority TINYINT DEFAULT 5,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    -- Optimized indexes
+    INDEX idx_request_id (request_id),
+    INDEX idx_date_status (request_date, status),
+    INDEX idx_emirate_status (selected_emirate, status),
+    INDEX idx_product_date (product_id, request_date),
+    INDEX idx_status_priority (status, priority),
+    
+    -- Full-text search for admin
+    FULLTEXT KEY ft_search (car_make, car_model)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Enhanced Quotes Table
+CREATE TABLE wp_fitting_quotes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    request_id VARCHAR(64) NOT NULL,
+    garage_id INT NOT NULL,
+    quote_amount DECIMAL(10,2) NOT NULL,
+    estimated_time VARCHAR(50),
+    notes TEXT,
+    status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+    submission_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_request_id (request_id),
+    INDEX idx_garage_id (garage_id),
+    INDEX idx_status (status),
+    INDEX idx_submission_date (submission_date),
+    
+    -- Prevent duplicate quotes
+    UNIQUE KEY unique_quote (request_id, garage_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Status Tracking Table
+CREATE TABLE wp_fitting_request_status_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    request_id VARCHAR(64) NOT NULL,
+    old_status VARCHAR(20),
+    new_status VARCHAR(20) NOT NULL,
+    changed_by INT,
+    changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    
+    INDEX idx_request_id (request_id),
+    INDEX idx_changed_at (changed_at),
+    INDEX idx_changed_by (changed_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Notification Queue Table
+CREATE TABLE wp_fitting_notification_queue (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    request_id VARCHAR(64) NOT NULL,
+    notification_type ENUM('email', 'whatsapp', 'sms') NOT NULL,
+    recipients TEXT NOT NULL,
+    priority TINYINT DEFAULT 5,
+    status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+    attempts TINYINT DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    scheduled_for DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME NULL,
+    error_message TEXT,
+    
+    INDEX idx_status_priority (status, priority),
+    INDEX idx_scheduled_for (scheduled_for),
+    INDEX idx_request_id (request_id),
+    INDEX idx_notification_type (notification_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Error Logs Table
+CREATE TABLE wp_fitting_error_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    error_message TEXT NOT NULL,
+    context TEXT,
+    severity ENUM('info', 'warning', 'error', 'critical') DEFAULT 'error',
+    user_id INT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    stack_trace TEXT,
+    resolved BOOLEAN DEFAULT FALSE,
+    
+    INDEX idx_timestamp (timestamp),
+    INDEX idx_severity (severity),
+    INDEX idx_user_id (user_id),
+    INDEX idx_resolved (resolved)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Revoked Tokens Table
+CREATE TABLE wp_fitting_revoked_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    token_hash VARCHAR(64) NOT NULL,
+    revoked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE KEY unique_token (token_hash),
+    INDEX idx_revoked_at (revoked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Rate Limiting Table
+CREATE TABLE wp_fitting_rate_limits (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    identifier VARCHAR(100) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    count INT DEFAULT 1,
+    window_start DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE KEY unique_rate_limit (identifier, action),
+    INDEX idx_window_start (window_start)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### 4.1.2 Database Maintenance and Optimization
+```php
+class DatabaseMaintenance {
+    public static function setupMaintenanceTasks() {
+        // Schedule cleanup tasks
+        if (!wp_next_scheduled('fitting_request_cleanup')) {
+            wp_schedule_event(time(), 'daily', 'fitting_request_cleanup');
+        }
+        
+        if (!wp_next_scheduled('fitting_request_optimize')) {
+            wp_schedule_event(time(), 'weekly', 'fitting_request_optimize');
+        }
+    }
+    
+    public static function cleanupOldRecords() {
+        global $wpdb;
+        
+        // Clean up old completed requests (6 months)
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM wp_fitting_requests 
+                WHERE status = 'completed' 
+                AND created_at < %s",
+                date('Y-m-d H:i:s', strtotime('-6 months'))
+            )
+        );
+        
+        // Clean up old error logs (3 months)
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM wp_fitting_error_logs 
+                WHERE timestamp < %s 
+                AND severity != 'critical'",
+                date('Y-m-d H:i:s', strtotime('-3 months'))
+            )
+        );
+        
+        // Clean up old revoked tokens (1 month)
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM wp_fitting_revoked_tokens 
+                WHERE revoked_at < %s",
+                date('Y-m-d H:i:s', strtotime('-1 month'))
+            )
+        );
+    }
+    
+    public static function optimizeTables() {
+        global $wpdb;
+        
+        $tables = [
+            'wp_fitting_requests',
+            'wp_fitting_quotes',
+            'wp_fitting_request_status_log',
+            'wp_fitting_notification_queue',
+            'wp_fitting_error_logs'
+        ];
+        
+        foreach ($tables as $table) {
+            $wpdb->query("OPTIMIZE TABLE {$table}");
+        }
+    }
+}
+```
+
+---
+
+## 5. WHATSAPP CLOUD API INTEGRATION
+
+### 5.1 Robust WhatsApp Integration
+```php
+class WhatsAppCloudAPI {
+    private $phone_number_id;
+    private $access_token;
+    private $api_version = 'v19.0';
+    private $base_url = 'https://graph.facebook.com/';
+    
+    public function __construct() {
+        $this->phone_number_id = get_option('fitting_whatsapp_phone_number_id');
+        $this->access_token = get_option('fitting_whatsapp_access_token');
+    }
+    
+    public function sendMessage($to, $message_data) {
+        $url = $this->base_url . $this->api_version . '/' . $this->phone_number_id . '/messages';
+        
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $to,
+            'type' => 'text',
+            'text' => ['body' => $message_data]
+        ];
+        
+        $response = wp_remote_post($url, [
+            'headers' => [
+                'Authorization' => 'Bearer ' . $this->access_token,
+                'Content-Type' => 'application/json'
+            ],
+            'body' => wp_json_encode($payload),
+            'timeout' => 30
+        ]);
+        
+        if (is_wp_error($response)) {
+            FittingRequestErrorHandler::getInstance()->logError(
+                'WhatsApp API Error: ' . $response->get_error_message(),
+                ['to' => $to, 'message' => $message_data],
+                'error'
+            );
+            return false;
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        $response_body = wp_remote_retrieve_body($response);
+        
+        if ($response_code === 200) {
+            return json_decode($response_body, true);
+        } else {
+            FittingRequestErrorHandler::getInstance()->logError(
+                'WhatsApp API Failed: ' . $response_body,
+                ['code' => $response_code, 'to' => $to],
+                'error'
+            );
+            return false;
+        }
+    }
+    
+    public function validateWebhook($hub_challenge, $hub_verify_token) {
+        $verify_token = get_option('fitting_whatsapp_verify_token');
+        
+        if ($hub_verify_token === $verify_token) {
+            return $hub_challenge;
+        }
+        
+        return false;
+    }
+}
+```
+
+### 5.2 Setup Wizard for WhatsApp
+```php
+class WhatsAppSetupWizard {
+    public function renderSetupPage() {
+        ?>
+        <div class="fitting-setup-wizard">
+            <h2>WhatsApp Cloud API Setup</h2>
+            <div class="setup-steps">
+                <div class="step active" data-step="1">
+                    <h3>Step 1: Meta Business Account</h3>
+                    <p>Create a Meta Business Account at <a href="https://business.facebook.com" target="_blank">business.facebook.com</a></p>
+                    <button class="next-step">Next</button>
+                </div>
+                
+                <div class="step" data-step="2">
+                    <h3>Step 2: WhatsApp Business API</h3>
+                    <p>Set up WhatsApp Business API in your Meta Business Account</p>
+                    <button class="next-step">Next</button>
+                </div>
+                
+                <div class="step" data-step="3">
+                    <h3>Step 3: Configure Settings</h3>
+                    <form id="whatsapp-config-form">
+                        <table class="form-table">
+                            <tr>
+                                <th>Phone Number ID</th>
+                                <td><input type="text" name="phone_number_id" required /></td>
+                            </tr>
+                            <tr>
+                                <th>Access Token</th>
+                                <td><input type="password" name="access_token" required /></td>
+                            </tr>
+                            <tr>
+                                <th>Verify Token</th>
+                                <td><input type="text" name="verify_token" required /></td>
+                            </tr>
+                        </table>
+                        <button type="submit">Test Connection</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+    
+    public function testConnection() {
+        $phone_number_id = sanitize_text_field($_POST['phone_number_id']);
+        $access_token = sanitize_text_field($_POST['access_token']);
+        
+        // Test API connection
+        $test_url = "https://graph.facebook.com/v19.0/{$phone_number_id}";
+        
+        $response = wp_remote_get($test_url, [
+            'headers' => [
+                'Authorization' => 'Bearer ' . $access_token
+            ]
+        ]);
+        
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            // Save settings
+            update_option('fitting_whatsapp_phone_number_id', $phone_number_id);
+            update_option('fitting_whatsapp_access_token', $access_token);
+            update_option('fitting_whatsapp_verify_token', sanitize_text_field($_POST['verify_token']));
+            
+            wp_send_json_success(['message' => 'Connection successful!']);
+        } else {
+            wp_send_json_error(['message' => 'Connection failed. Please check your credentials.']);
+        }
+    }
+}
+```
+
+---
+
+## 6. PERFORMANCE OPTIMIZATION
+
+### 6.1 Caching Strategy
+```php
+class CacheManager {
+    private static $cache_group = 'fitting_requests';
+    private static $cache_expiry = 3600; // 1 hour
+    
+    public static function get($key) {
+        return wp_cache_get($key, self::$cache_group);
+    }
+    
+    public static function set($key, $data, $expiry = null) {
+        $expiry = $expiry ?? self::$cache_expiry;
+        return wp_cache_set($key, $data, self::$cache_group, $expiry);
+    }
+    
+    public static function delete($key) {
+        return wp_cache_delete($key, self::$cache_group);
+    }
+    
+    public static function getCarMakes() {
+        $cache_key = 'car_makes';
+        $makes = self::get($cache_key);
+        
+        if ($makes === false) {
+            $makes = [
+                'Toyota', 'Honda', 'Ford', 'Nissan', 'BMW', 
+                'Mercedes-Benz', 'Audi', 'Volkswagen', 'Hyundai', 
+                'Kia', 'Mazda', 'Subaru', 'Volvo', 'Lexus'
+            ];
+            self::set($cache_key, $makes, DAY_IN_SECONDS);
+        }
+        
+        return $makes;
+    }
+    
+    public static function getCarModels($make) {
+        $cache_key = 'car_models_' . sanitize_key($make);
+        $models = self::get($cache_key);
+        
+        if ($models === false) {
+            $models = self::loadCarModels($make);
+            self::set($cache_key, $models, DAY_IN_SECONDS);
+        }
+        
+        return $models;
+    }
+    
+    private static function loadCarModels($make) {
+        $models_data = [
+            'Toyota' => ['Camry', 'Corolla', 'RAV4', 'Prius', 'Highlander', 'Land Cruiser'],
+            'Honda' => ['Civic', 'Accord', 'CR-V', 'Pilot', 'Fit', 'HR-V'],
+            'Ford' => ['F-150', 'Mustang', 'Explorer', 'Escape', 'Focus', 'Fusion'],
+            'Nissan' => ['Altima', 'Sentra', 'Rogue', 'Pathfinder', 'Maxima', 'Murano'],
+            'BMW' => ['3 Series', '5 Series', 'X3', 'X5', 'X1', '7 Series'],
+            // Add more models as needed
+        ];
+        
+        return $models_data[$make] ?? [];
+    }
+}
+```
+
+### 6.2 Rate Limiting Implementation
+```php
+class RateLimiter {
+    private static $limits = [
+        'form_submission' => ['limit' => 5, 'window' => 300], // 5 per 5 minutes
+        'status_check' => ['limit' => 20, 'window' => 300],   // 20 per 5 minutes
+        'quote_submission' => ['limit' => 10, 'window' => 600] // 10 per 10 minutes
+    ];
+    
+    public static function checkLimit($identifier, $action) {
+        global $wpdb;
+        
+        if (!isset(self::$limits[$action])) {
+            return true;
+        }
+        
+        $limit = self::$limits[$action]['limit'];
+        $window = self::$limits[$action]['window'];
+        $window_start = date('Y-m-d H:i:s', time() - $window);
+        
+        // Clean up old records
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM wp_fitting_rate_limits 
+                WHERE window_start < %s",
+                $window_start
+            )
+        );
+        
+        // Check current count
+        $current_count = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT count FROM wp_fitting_rate_limits 
+                WHERE identifier = %s AND action = %s",
+                $identifier,
+                $action
+            )
+        );
+        
+        if ($current_count >= $limit) {
+            return false;
+        }
+        
+        // Update or insert count
+        $wpdb->query(
+            $wpdb->prepare(
+                "INSERT INTO wp_fitting_rate_limits (identifier, action, count, window_start) 
+                VALUES (%s, %s, 1, %s) 
+                ON DUPLICATE KEY UPDATE count = count + 1",
+                $identifier,
+                $action,
+                current_time('mysql')
+            )
+        );
+        
+        return true;
+    }
+}
+```
+
+---
+
+## 7. TESTING STRATEGY
+
+### 7.1 Automated Testing Suite
+```php
+class FittingRequestTests extends WP_UnitTestCase {
+    public function setUp() {
+        parent::setUp();
+        $this->createTestData();
+    }
+    
+    public function test_form_validation() {
+        $test_data = [
+            'emirate' => 'Dubai',
+            'car_make' => 'Toyota',
+            'car_model' => 'Camry',
+            'customer_email' => 'test@example.com',
+            'customer_whatsapp' => '+971501234567'
+        ];
+        
+        $validator = new FittingRequestValidator();
+        $result = $validator->validate($test_data);
+        
+        $this->assertTrue($result['is_valid']);
+        $this->assertEmpty($result['errors']);
+    }
+    
+    public function test_invalid_email() {
+        $test_data = [
+            'emirate' => 'Dubai',
+            'car_make' => 'Toyota',
+            'car_model' => 'Camry',
+            'customer_email' => 'invalid-email',
+            'customer_whatsapp' => '+971501234567'
+        ];
+        
+        $validator = new FittingRequestValidator();
+        $result = $validator->validate($test_data);
+        
+        $this->assertFalse($result['is_valid']);
+        $this->assertContains('Invalid email format', $result['errors']);
+    }
+    
+    public function test_token_generation_and_validation() {
+        $request_id = 'TEST123';
+        $garage_id = 456;
+        
+        $token = QuoteTokenManager::generateToken($request_id, $garage_id);
+        $this->assertNotEmpty($token);
+        
+        $is_valid = QuoteTokenManager::validateToken($token, $request_id, $garage_id);
+        $this->assertTrue($is_valid);
+        
+        // Test with wrong data
+        $is_invalid = QuoteTokenManager::validateToken($token, 'WRONG123', $garage_id);
+        $this->assertFalse($is_invalid);
+    }
+    
+    public function test_notification_queue() {
+        $queue = new NotificationQueue();
+        
+        $request_id = 'TEST123';
+        $recipients = ['garage1@example.com', 'garage2@example.com'];
+        
+        $result = $queue->addToQueue($request_id, 'email', $recipients, 5);
+        $this->assertNotFalse($result);
+        
+        // Test queue processing
+        $queue->processQueue(1);
+        
+        global $wpdb;
+        $processed = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM wp_fitting_notification_queue 
+                WHERE request_id = %s AND status = 'completed'",
+                $request_id
+            )
+        );
+        
+        $this->assertGreaterThan(0, $processed);
+    }
+    
+    public function test_rate_limiting() {
+        $identifier = 'test_user_' . uniqid();
+        $action = 'form_submission';
+        
+        // Should pass first 5 attempts
+        for ($i = 0; $i < 5; $i++) {
+            $result = RateLimiter::checkLimit($identifier, $action);
+            $this->assertTrue($result, "Attempt {$i} should pass");
+        }
+        
+        // 6th attempt should fail
+        $result = RateLimiter::checkLimit($identifier, $action);
+        $this->assertFalse($result, "6th attempt should be rate limited");
+    }
+    
+    public function test_data_encryption() {
+        $sensitive_data = 'customer_phone_number';
+        
+        $encrypted = DataEncryption::encrypt($sensitive_data);
+        $this->assertNotEquals($sensitive_data, $encrypted);
+        
+        $decrypted = DataEncryption::decrypt($encrypted);
+        $this->assertEquals($sensitive_data, $decrypted);
+    }
+    
+    public function test_whatsapp_api_integration() {
+        $whatsapp = new WhatsAppCloudAPI();
+        
+        // Mock the API response
+        add_filter('pre_http_request', function($preempt, $args, $url) {
+            if (strpos($url, 'graph.facebook.com') !== false) {
+                return [
+                    'response' => ['code' => 200],
+                    'body' => wp_json_encode(['messages' => [['id' => 'test_message_id']]])
+                ];
+            }
+            return $preempt;
+        }, 10, 3);
+        
+        $result = $whatsapp->sendMessage('+971501234567', 'Test message');
+        $this->assertNotFalse($result);
+        $this->assertArrayHasKey('messages', $result);
+    }
+    
+    private function createTestData() {
+        // Create test garage
+        wp_insert_post([
+            'post_type' => 'garage',
+            'post_title' => 'Test Garage',
+            'post_status' => 'publish',
+            'meta_input' => [
+                'emirate' => 'Dubai',
+                'email' => 'test@garage.com',
+                'whatsapp' => '+971501234567',
+                'status' => 'active'
+            ]
+        ]);
+    }
+}
+
+// Integration Tests
+class FittingRequestIntegrationTests extends WP_UnitTestCase {
+    public function test_complete_workflow() {
+        // Test complete customer journey
+        $this->simulateFormSubmission();
+        $this->verifyNotificationsSent();
+        $this->simulateQuoteSubmission();
+        $this->verifyCustomerNotification();
+    }
+    
+    private function simulateFormSubmission() {
+        $_POST = [
+            'action' => 'submit_fitting_request',
+            'product_id' => 123,
+            'emirate' => 'Dubai',
+            'car_make' => 'Toyota',
+            'car_model' => 'Camry',
+            'customer_email' => 'customer@example.com',
+            'customer_whatsapp' => '+971501234567',
+            'nonce' => wp_create_nonce('fitting_request_nonce')
+        ];
+        
+        // Simulate AJAX handler
+        do_action('wp_ajax_submit_fitting_request');
+        do_action('wp_ajax_nopriv_submit_fitting_request');
+    }
+    
+    private function verifyNotificationsSent() {
+        global $wpdb;
+        
+        $notifications = $wpdb->get_results(
+            "SELECT * FROM wp_fitting_notification_queue 
+            WHERE notification_type = 'email' 
+            AND status = 'pending'"
+        );
+        
+        $this->assertGreaterThan(0, count($notifications));
+    }
+    
+    private function simulateQuoteSubmission() {
+        // Simulate garage submitting quote
+        $request_id = 'TEST123';
+        $garage_id = 1;
+        $token = QuoteTokenManager::generateToken($request_id, $garage_id);
+        
+        $_POST = [
+            'action' => 'submit_quote',
+            'token' => $token,
+            'request_id' => $request_id,
+            'garage_id' => $garage_id,
+            'quote_amount' => 250.00,
+            'estimated_time' => '2 hours',
+            'notes' => 'Quality service guaranteed'
+        ];
+        
+        do_action('wp_ajax_submit_quote');
+        do_action('wp_ajax_nopriv_submit_quote');
+    }
+    
+    private function verifyCustomerNotification() {
+        global $wpdb;
+        
+        $customer_notifications = $wpdb->get_results(
+            "SELECT * FROM wp_fitting_notification_queue 
+            WHERE notification_type = 'email' 
+            AND recipients LIKE '%customer@example.com%'"
+        );
+        
+        $this->assertGreaterThan(0, count($customer_notifications));
+    }
+}
+```
+
+---
+
+## 8. ENHANCED FILE STRUCTURE (LOVABLE.DEV COMPATIBLE)
+
+```
+wp-content/plugins/fitting-request-system/
+├── fitting-request-system.php (main plugin file)
+├── composer.json (for dependency management)
+├── package.json (for frontend assets)
+├── webpack.config.js (asset bundling)
+├── .env.example (environment variables template)
+├── includes/
+│   ├── core/
+│   │   ├── class-plugin-activator.php
+│   │   ├── class-plugin-deactivator.php
+│   │   ├── class-plugin-loader.php
+│   │   └── class-plugin-i18n.php
+│   ├── admin/
+│   │   ├── class-admin-dashboard.php
+│   │   ├── class-admin-settings.php
+│   │   ├── class-analytics-dashboard.php
+│   │   └── class-whatsapp-setup-wizard.php
+│   ├── frontend/
+│   │   ├── class-frontend-form.php
+│   │   ├── class-request-status-portal.php
+│   │   └── class-shortcode-handler.php
+│   ├── api/
+│   │   ├── class-whatsapp-cloud-api.php
+│   │   ├── class-email-handler.php
+│   │   └── class-webhook-handler.php
+│   ├── database/
+│   │   ├── class-database-manager.php
+│   │   ├── class-migration-handler.php
+│   │   └── migrations/
+│   │       ├── 001_create_fitting_requests_table.php
+│   │       ├── 002_create_quotes_table.php
+│   │       └── 003_create_notification_queue_table.php
+│   ├── security/
+│   │   ├── class-token-manager.php
+│   │   ├── class-data-encryption.php
+│   │   ├── class-rate-limiter.php
+│   │   └── class-input-validator.php
+│   ├── services/
+│   │   ├── class-notification-queue.php
+│   │   ├── class-garage-manager.php
+│   │   ├── class-request-handler.php
+│   │   └── class-feedback-system.php
+│   ├── utilities/
+│   │   ├── class-cache-manager.php
+│   │   ├── class-error-handler.php
+│   │   ├── class-logger.php
+│   │   └── class-helper-functions.php
+│   └── traits/
+│       ├── trait-singleton.php
+│       └── trait-hooks.php
+├── templates/
+│   ├── frontend/
+│   │   ├── form-fitting-request.php
+│   │   ├── status-portal.php
+│   │   └── garage-registration.php
+│   ├── admin/
+│   │   ├── dashboard-main.php
+│   │   ├── analytics-dashboard.php
+│   │   ├── settings-page.php
+│   │   └── whatsapp-setup.php
+│   ├── emails/
+│   │   ├── garage-notification.php
+│   │   ├── customer-confirmation.php
+│   │   ├── quote-notification.php
+│   │   └── feedback-request.php
+│   └── whatsapp/
+│       ├── garage-notification.php
+│       ├── customer-confirmation.php
+│       └── quote-notification.php
+├── assets/
+│   ├── src/
+│   │   ├── js/
+│   │   │   ├── frontend/
+│   │   │   │   ├── form-handler.js
+│   │   │   │   ├── status-portal.js
+│   │   │   │   └── validation.js
+│   │   │   ├── admin/
+│   │   │   │   ├── dashboard.js
+│   │   │   │   ├── analytics.js
+│   │   │   │   └── settings.js
+│   │   │   └── shared/
+│   │   │       ├── utils.js
+│   │   │       └── api.js
+│   │   ├── scss/
+│   │   │   ├── frontend/
+│   │   │   │   ├── _form.scss
+│   │   │   │   ├── _status-portal.scss
+│   │   │   │   └── main.scss
+│   │   │   ├── admin/
+│   │   │   │   ├── _dashboard.scss
+│   │   │   │   ├── _analytics.scss
+│   │   │   │   └── main.scss
+│   │   │   └── shared/
+│   │   │       ├── _variables.scss
+│   │   │       ├── _mixins.scss
+│   │   │       └── _utilities.scss
+│   │   └── images/
+│   │       ├── icons/
+│   │       └── graphics/
+│   ├── dist/ (generated by webpack)
+│   │   ├── css/
+│   │   ├── js/
+│   │   └── images/
+│   └── vendor/ (third-party libraries)
+├── languages/
+│   ├── fitting-request-system.pot
+│   ├── fitting-request-system-en_US.po
+│   ├── fitting-request-system-en_US.mo
+│   ├── fitting-request-system-ar.po
+│   └── fitting-request-system-ar.mo
+├── tests/
+│   ├── bootstrap.php
+│   ├── unit/
+│   │   ├── test-form-validation.php
+│   │   ├── test-token-manager.php
+│   │   ├── test-notification-queue.php
+│   │   ├── test-rate-limiter.php
+│   │   └── test-data-encryption.php
+│   ├── integration/
+│   │   ├── test-complete-workflow.php
+│   │   ├── test-whatsapp-integration.php
+│   │   └── test-email-integration.php
+│   ├── acceptance/
+│   │   ├── test-user-journey.php
+│   │   └── test-admin-workflow.php
+│   └── fixtures/
+│       ├── sample-data.php
+│       └── mock-responses.php
+├── docs/
+│   ├── installation.md
+│   ├── configuration.md
+│   ├── api-reference.md
+│   ├── troubleshooting.md
+│   └── changelog.md
+├── config/
+│   ├── database.php
+│   ├── email-templates.php
+│   ├── whatsapp-templates.php
+│   └── car-data.php
+└── logs/
+    └── .gitkeep
+```
+
+---
+
+## 9. LOVABLE.DEV INTEGRATION FEATURES
+
+### 9.1 Environment Configuration
+```php
+// .env support for Lovable.dev
+class EnvironmentConfig {
+    public static function load() {
+        $env_file = plugin_dir_path(__FILE__) . '.env';
+        
+        if (file_exists($env_file)) {
+            $lines = file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            
+            foreach ($lines as $line) {
+                if (strpos($line, '=') !== false && strpos($line, '#') !== 0) {
+                    [$key, $value] = explode('=', $line, 2);
+                    putenv(trim($key) . '=' . trim($value));
+                }
+            }
+        }
+    }
+    
+    public static function get($key, $default = null) {
+        $value = getenv($key);
+        return $value !== false ? $value : $default;
+    }
+}
+
+// Usage in main plugin file
+EnvironmentConfig::load();
+
+define('FITTING_REQUEST_DEBUG', EnvironmentConfig::get('DEBUG', false));
+define('FITTING_REQUEST_LOG_LEVEL', EnvironmentConfig::get('LOG_LEVEL', 'error'));
+```
+
+### 9.2 Webpack Configuration
+```javascript
+// webpack.config.js for Lovable.dev compatibility
+const path = require('path');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+
+module.exports = {
+    entry: {
+        'frontend': './assets/src/js/frontend/main.js',
+        'admin': './assets/src/js/admin/main.js',
+        'frontend-style': './assets/src/scss/frontend/main.scss',
+        'admin-style': './assets/src/scss/admin/main.scss'
+    },
+    output: {
+        path: path.resolve(__dirname, 'assets/dist'),
+        filename: 'js/[name].js',
+        publicPath: '/wp-content/plugins/fitting-request-system/assets/dist/'
+    },
+    module: {
+        rules: [
+            {
+                test: /\.js$/,
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader',
+                    options: {
+                        presets: ['@babel/preset-env']
+                    }
+                }
+            },
+            {
+                test: /\.scss$/,
+                use: [
+                    MiniCssExtractPlugin.loader,
+                    'css-loader',
+                    'sass-loader'
+                ]
+            },
+            {
+                test: /\.(png|jpg|gif|svg)$/,
+                type: 'asset/resource',
+                generator: {
+                    filename: 'images/[name][ext]'
+                }
+            }
+        ]
+    },
+    plugins: [
+        new CleanWebpackPlugin(),
+        new MiniCssExtractPlugin({
+            filename: 'css/[name].css'
+        })
+    ],
+    optimization: {
+        splitChunks: {
+            chunks: 'all'
+        }
+    }
+};
+```
+
+### 9.3 Composer Configuration
+```json
+{
+    "name": "partsonclick/fitting-request-system",
+    "description": "WooCommerce Vehicle Parts Fitting Request System",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "autoload": {
+        "psr-4": {
+            "FittingRequest\\": "includes/"
+        }
+    },
+    "require": {
+        "php": ">=7.4",
+        "composer/installers": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0",
+        "wp-coding-standards/wpcs": "^2.0",
+        "phpstan/phpstan": "^1.0"
+    },
+    "scripts": {
+        "test": "phpunit",
+        "cs": "phpcs",
+        "cbf": "phpcbf",
+        "analyze": "phpstan analyze"
+    }
+}
+```
+
+### 9.4 Modern Development Workflow
+```php
+// Modern Plugin Structure with Namespaces
+namespace FittingRequest\Core;
+
+class PluginManager {
+    use \FittingRequest\Traits\Singleton;
+    use \FittingRequest\Traits\Hooks;
+    
+    private $version = '3.0.0';
+    private $services = [];
+    
+    protected function __construct() {
+        $this->defineConstants();
+        $this->loadDependencies();
+        $this->setLocale();
+        $this->defineAdminHooks();
+        $this->definePublicHooks();
+        $this->initializeServices();
+    }
+    
+    private function defineConstants() {
+        define('FITTING_REQUEST_VERSION', $this->version);
+        define('FITTING_REQUEST_PLUGIN_DIR', plugin_dir_path(__FILE__));
+        define('FITTING_REQUEST_PLUGIN_URL', plugin_dir_url(__FILE__));
+    }
+    
+    private function loadDependencies() {
+        require_once FITTING_REQUEST_PLUGIN_DIR . 'vendor/autoload.php';
+    }
+    
+    private function initializeServices() {
+        $this->services = [
+            'error_handler' => new \FittingRequest\Services\ErrorHandler(),
+            'cache_manager' => new \FittingRequest\Utilities\CacheManager(),
+            'notification_queue' => new \FittingRequest\Services\NotificationQueue(),
+            'rate_limiter' => new \FittingRequest\Security\RateLimiter(),
+            'token_manager' => new \FittingRequest\Security\TokenManager(),
+            'garage_manager' => new \FittingRequest\Services\GarageManager(),
+            'request_handler' => new \FittingRequest\Services\RequestHandler(),
+        ];
+    }
+    
+    public function getService($service_name) {
+        return $this->services[$service_name] ?? null;
+    }
+}
+
+// Singleton trait for modern PHP
+namespace FittingRequest\Traits;
+
+trait Singleton {
+    private static $instance = null;
+    
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new static();
+        }
+        return self::$instance;
+    }
+    
+    protected function __construct() {}
+    private function __clone() {}
+    private function __wakeup() {}
+}
+```
+
+---
+
+## 10. DEPLOYMENT & MAINTENANCE
+
+### 10.1 Automated Deployment Pipeline
+```yaml
+# .github/workflows/deploy.yml for CI/CD
+name: Deploy to WordPress
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.0'
+        
+    - name: Install dependencies
+      run: composer install
+      
+    - name: Run tests
+      run: composer test
+      
+    - name: Run code analysis
+      run: composer analyze
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+        
+    - name: Install npm dependencies
+      run: npm install
+      
+    - name: Build assets
+      run: npm run build
+      
+    - name: Create plugin zip
+      run: zip -r fitting-request-system.zip . -x "*.git*" "node_modules/*" "tests/*"
+```
+
+### 10.2 Health Monitoring System
+```php
+class HealthMonitor {
+    private static $checks = [
+        'database_connection',
+        'email_service',
+        'whatsapp_api',
+        'queue_processing',
+        'disk_space',
+        'plugin_conflicts'
+    ];
+    
+    public static function runHealthChecks() {
+        $results = [];
+        
+        foreach (self::$checks as $check) {
+            $method = 'check_' . $check;
+            if (method_exists(__CLASS__, $method)) {
+                $results[$check] = self::$method();
+            }
+        }
+        
+        self::logHealthStatus($results);
+        return $results;
+    }
+    
+    private static function check_database_connection() {
+        global $wpdb;
+        
+        $result = $wpdb->get_var("SELECT 1");
+        return [
+            'status' => $result === '1' ? 'healthy' : 'error',
+            'message' => $result === '1' ? 'Database connected' : 'Database connection failed',
+            'timestamp' => current_time('mysql')
+        ];
+    }
+    
+    private static function check_email_service() {
+        $test_result = wp_mail(
+            get_option('admin_email'),
+            'Health Check Test',
+            'This is a health check test email.',
+            [],
+            []
+        );
+        
+        return [
+            'status' => $test_result ? 'healthy' : 'warning',
+            'message' => $test_result ? 'Email service working' : 'Email service may have issues',
+            'timestamp' => current_time('mysql')
+        ];
+    }
+    
+    private static function check_whatsapp_api() {
+        $whatsapp = new \FittingRequest\API\WhatsAppCloudAPI();
+        
+        if (!$whatsapp->isConfigured()) {
+            return [
+                'status' => 'warning',
+                'message' => 'WhatsApp API not configured',
+                'timestamp' => current_time('mysql')
+            ];
+        }
+        
+        $test_result = $whatsapp->testConnection();
+        
+        return [
+            'status' => $test_result ? 'healthy' : 'error',
+            'message' => $test_result ? 'WhatsApp API working' : 'WhatsApp API connection failed',
+            'timestamp' => current_time('mysql')
+        ];
+    }
+    
+    private static function check_queue_processing() {
+        global $wpdb;
+        
+        $stuck_jobs = $wpdb->get_var(
+            "SELECT COUNT(*) FROM wp_fitting_notification_queue 
+            WHERE status = 'processing' 
+            AND created_at < DATE_SUB(NOW(), INTERVAL 1 HOUR)"
+        );
+        
+        return [
+            'status' => $stuck_jobs > 0 ? 'warning' : 'healthy',
+            'message' => $stuck_jobs > 0 ? "Found {$stuck_jobs} stuck queue items" : 'Queue processing normally',
+            'timestamp' => current_time('mysql')
+        ];
+    }
+    
+    public static function scheduleHealthChecks() {
+        if (!wp_next_scheduled('fitting_request_health_check')) {
+            wp_schedule_event(time(), 'hourly', 'fitting_request_health_check');
+        }
+    }
+}
+
+// Hook the health check
+add_action('fitting_request_health_check', ['HealthMonitor', 'runHealthChecks']);
+```
+
+### 10.3 Performance Monitoring
+```php
+class PerformanceMonitor {
+    private static $performance_log = 'wp_fitting_performance_log';
+    
+    public static function startTimer($operation) {
+        global $fitting_request_timers;
+        $fitting_request_timers[$operation] = microtime(true);
+    }
+    
+    public static function endTimer($operation) {
+        global $fitting_request_timers, $wpdb;
+        
+        if (!isset($fitting_request_timers[$operation])) {
+            return false;
+        }
+        
+        $duration = microtime(true) - $fitting_request_timers[$operation];
+        
+        // Log slow operations
+        if ($duration > 2.0) { // Slower than 2 seconds
+            $wpdb->insert(
+                self::$performance_log,
+                [
+                    'operation' => $operation,
+                    'duration' => $duration,
+                    'timestamp' => current_time('mysql'),
+                    'memory_usage' => memory_get_peak_usage(true),
+                    'user_id' => get_current_user_id()
+                ]
+            );
+        }
+        
+        unset($fitting_request_timers[$operation]);
+        return $duration;
+    }
+    
+    public static function getPerformanceReport($days = 7) {
+        global $wpdb;
+        
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT operation, 
+                        AVG(duration) as avg_duration,
+                        MAX(duration) as max_duration,
+                        COUNT(*) as operation_count
+                FROM {$wpdb->prefix}fitting_performance_log 
+                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL %d DAY)
+                GROUP BY operation
+                ORDER BY avg_duration DESC",
+                $days
+            )
+        );
+    }
+}
+```
+
+---
+
+## 11. FINAL IMPLEMENTATION TIMELINE
+
+### Phase 1: Foundation (Week 1)
+- **Day 1-2:** Database schema creation and migration system
+- **Day 3-4:** Core plugin structure with namespaces and autoloading
+- **Day 5-7:** Error handling, logging, and security framework
+
+### Phase 2: Core Features (Week 2)
+- **Day 1-2:** Frontend form with validation and AJAX
+- **Day 3-4:** Backend request processing and garage management
+- **Day 5-7:** Email notification system and queue processing
+
+### Phase 3: Advanced Features (Week 3)
+- **Day 1-2:** WhatsApp Cloud API integration with setup wizard
+- **Day 3-4:** Token-based security and rate limiting
+- **Day 5-7:** Request status portal and quote submission
+
+### Phase 4: Polish & Testing (Week 4)
+- **Day 1-2:** Comprehensive testing suite and bug fixes
+- **Day 3-4:** Performance optimization and caching
+- **Day 5-7:** Admin dashboard and analytics
+
+### Phase 5: Deployment (Week 5)
+- **Day 1-2:** Documentation and deployment preparation
+- **Day 3-4:** Staging environment testing
+- **Day 5-7:** Production deployment and monitoring setup
+
+---
+
+## 12. SUCCESS METRICS
+
+### 12.1 Technical KPIs
+- **Uptime:** 99.9%+ availability
+- **Performance:** < 2 seconds response time for all operations
+- **Error Rate:** < 0.1% of total requests
+- **Test Coverage:** > 90% code coverage
+- **Security:** Zero security vulnerabilities
+
+### 12.2 Business KPIs
+- **Lead Generation:** 100+ fitting requests per week
+- **Garage Response Rate:** > 70% of notified garages submit quotes
+- **Customer Satisfaction:** > 4.5/5 average rating
+- **System Adoption:** > 80% of eligible products use the fitting request feature
+
+---
+
+This enhanced SRS provides a bulletproof, production-ready specification that addresses all potential issues while maintaining ease of implementation and low costs. The modular architecture ensures scalability and maintainability, while the comprehensive testing and monitoring systems guarantee reliability.
