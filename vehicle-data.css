@@ -1,0 +1,407 @@
+/**
+ * Vehicle Data Styles
+ * Styles for car make/model selection and search functionality
+ */
+
+/* Vehicle Fields Container */
+.fitting-vehicle-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.fitting-vehicle-field {
+    flex: 1;
+    min-width: 200px;
+}
+
+.fitting-vehicle-field label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.fitting-vehicle-field select,
+.fitting-vehicle-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e1e5e9;
+    border-radius: 6px;
+    font-size: 14px;
+    background-color: #fff;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.fitting-vehicle-field select:focus,
+.fitting-vehicle-field input:focus {
+    outline: none;
+    border-color: #007cba;
+    box-shadow: 0 0 0 3px rgba(0, 124, 186, 0.1);
+}
+
+.fitting-vehicle-field select:disabled {
+    background-color: #f7f7f7;
+    color: #666;
+    cursor: not-allowed;
+}
+
+/* Loading State */
+.fitting-vehicle-field select option[value=""]:first-child {
+    color: #666;
+    font-style: italic;
+}
+
+/* Vehicle Search Container */
+.fitting-vehicle-search-container {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.fitting-vehicle-search-wrapper {
+    position: relative;
+}
+
+.fitting-vehicle-search {
+    width: 100%;
+    padding: 12px 40px 12px 15px;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+    font-size: 16px;
+    background-color: #fff;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.fitting-vehicle-search:focus {
+    outline: none;
+    border-color: #007cba;
+    box-shadow: 0 0 0 3px rgba(0, 124, 186, 0.1);
+}
+
+.fitting-vehicle-search::placeholder {
+    color: #888;
+    font-style: italic;
+}
+
+.fitting-clear-search {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #666;
+    cursor: pointer;
+    padding: 5px;
+    line-height: 1;
+    transition: color 0.3s ease;
+}
+
+.fitting-clear-search:hover {
+    color: #333;
+}
+
+/* Search Results */
+.fitting-search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 2px solid #e1e5e9;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: none;
+}
+
+.fitting-search-results-list {
+    padding: 0;
+}
+
+.fitting-search-result-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.3s ease;
+}
+
+.fitting-search-result-item:hover {
+    background-color: #f8f9fa;
+}
+
+.fitting-search-result-item:last-child {
+    border-bottom: none;
+}
+
+.fitting-vehicle-name {
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+}
+
+.fitting-search-loading,
+.fitting-search-error,
+.fitting-search-no-results {
+    padding: 15px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+.fitting-search-error {
+    color: #dc3545;
+}
+
+/* Vehicle Field Validation */
+.fitting-vehicle-field.has-error select,
+.fitting-vehicle-field.has-error input {
+    border-color: #dc3545;
+}
+
+.fitting-vehicle-field.has-error select:focus,
+.fitting-vehicle-field.has-error input:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+.fitting-field-error {
+    color: #dc3545;
+    font-size: 12px;
+    margin-top: 5px;
+    display: block;
+}
+
+/* Success State */
+.fitting-vehicle-field.has-success select,
+.fitting-vehicle-field.has-success input {
+    border-color: #28a745;
+}
+
+/* Notification System */
+.fitting-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 6px;
+    color: #fff;
+    font-weight: 500;
+    z-index: 10000;
+    min-width: 300px;
+    max-width: 500px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: none;
+}
+
+.fitting-notification-success {
+    background-color: #28a745;
+}
+
+.fitting-notification-error {
+    background-color: #dc3545;
+}
+
+.fitting-notification-info {
+    background-color: #17a2b8;
+}
+
+.fitting-notification-warning {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.fitting-notification-message {
+    display: block;
+    margin-right: 30px;
+}
+
+.fitting-notification-close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.fitting-notification-close:hover {
+    opacity: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .fitting-vehicle-fields {
+        flex-direction: column;
+    }
+    
+    .fitting-vehicle-field {
+        min-width: 100%;
+    }
+    
+    .fitting-notification {
+        left: 20px;
+        right: 20px;
+        min-width: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .fitting-vehicle-field select,
+    .fitting-vehicle-field input,
+    .fitting-vehicle-search {
+        padding: 8px 10px;
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+    
+    .fitting-vehicle-search {
+        padding-right: 35px;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .fitting-vehicle-field select,
+    .fitting-vehicle-field input,
+    .fitting-vehicle-search {
+        background-color: #2d3748;
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+    
+    .fitting-vehicle-field label {
+        color: #e2e8f0;
+    }
+    
+    .fitting-search-results {
+        background-color: #2d3748;
+        border-color: #4a5568;
+    }
+    
+    .fitting-search-result-item {
+        border-bottom-color: #4a5568;
+    }
+    
+    .fitting-search-result-item:hover {
+        background-color: #4a5568;
+    }
+    
+    .fitting-vehicle-name {
+        color: #e2e8f0;
+    }
+    
+    .fitting-search-loading,
+    .fitting-search-error,
+    .fitting-search-no-results {
+        color: #a0aec0;
+    }
+}
+
+/* Animation for smooth transitions */
+.fitting-search-results {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fitting-notification {
+    animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Loading spinner for select dropdowns */
+.fitting-vehicle-field.loading select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'%3e%3ccircle cx='12' cy='12' r='10' stroke='%23e5e7eb' stroke-width='4'/%3e%3cpath fill='%233b82f6' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Accessibility improvements */
+.fitting-vehicle-field select:focus-visible,
+.fitting-vehicle-field input:focus-visible,
+.fitting-vehicle-search:focus-visible {
+    outline: 2px solid #007cba;
+    outline-offset: 2px;
+}
+
+.fitting-search-result-item:focus {
+    outline: 2px solid #007cba;
+    outline-offset: -2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .fitting-vehicle-field select,
+    .fitting-vehicle-field input,
+    .fitting-vehicle-search {
+        border-width: 3px;
+    }
+    
+    .fitting-search-result-item:hover {
+        background-color: #000;
+        color: #fff;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .fitting-vehicle-field select,
+    .fitting-vehicle-field input,
+    .fitting-vehicle-search,
+    .fitting-search-result-item,
+    .fitting-notification-close {
+        transition: none;
+    }
+    
+    .fitting-search-results,
+    .fitting-notification {
+        animation: none;
+    }
+    
+    .fitting-vehicle-field.loading select {
+        animation: none;
+    }
+}
